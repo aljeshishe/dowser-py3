@@ -21,7 +21,7 @@ import sys
 import threading
 import time
 from types import FrameType, ModuleType
-
+import traceback
 from PIL import Image
 from PIL import ImageDraw
 
@@ -121,9 +121,9 @@ class Root:
 
     def index(self, floor=0):
         rows = []
-        typenames = sorted(list(self.history.keys()))
-        for typename in typenames:
-            hist = self.history[typename]
+        pairs = sorted(self.history.items(), key=lambda key_value: key_value[1][-1], reverse=True)
+
+        for typename, hist in pairs:
             maxhist = max(hist)
             if maxhist > int(floor):
                 row = ('<div class="typecount">%s<br />'
@@ -163,21 +163,30 @@ class Root:
 
         if objid is None:
             rows = self.trace_all(typename)
+            obj_count = '%s objects' % len(rows)
         else:
             rows = self.trace_one(typename, objid)
+            obj_count = ''
 
         return template("trace.html", output="\n".join(rows),
                         typename=cgi.escape(typename),
-                        objid=str(objid or ''))
+                        objid=str(objid or ''),
+                        obj_count=obj_count)
     trace.exposed = True
 
     def trace_all(self, typename):
-        rows = []
+        objects = []
         for obj in gc.get_objects():
             objtype = type(obj)
             if objtype.__module__ + "." + objtype.__name__ == typename:
-                rows.append("<p class='obj'>%s</p>"
-                            % ReferrerTree(obj).get_repr(obj))
+                objects.append(obj)
+
+        objects.sort(key=lambda item: id(item))
+        rows = []
+        for obj in objects:
+            rows.append("<p class='obj'>%s</p>"
+                        % ReferrerTree(obj).get_repr(obj))
+
         if not rows:
             rows = ["<h3>The type you requested was not found.</h3>"]
         return rows
@@ -196,7 +205,10 @@ class Root:
                     # Attributes
                     rows.append('<div class="obj"><h3>Attributes</h3>')
                     for k in dir(obj):
-                        v = getattr(obj, k)
+                        try:
+                            v = getattr(obj, k)
+                        except Exception as e:
+                            v = traceback._format_final_exc_line(type(e), e)
                         if type(v) not in method_types:
                             rows.append('<p class="attr"><b>%s:</b> %s</p>' %
                                         (k, get_repr(v)))
@@ -271,10 +283,10 @@ class ReferrerTree(reftree.Tree):
     def _gen(self, obj, depth=0):
         if self.maxdepth and depth >= self.maxdepth:
             yield depth, 0, "---- Max depth reached ----"
-            raise StopIteration
+            return
 
         if isinstance(obj, ModuleType) and self.ignore_modules:
-            raise StopIteration
+            return
 
         refs = gc.get_referrers(obj)
         refiter = iter(refs)
@@ -285,10 +297,11 @@ class ReferrerTree(reftree.Tree):
             if (isinstance(ref, FrameType) and
                     ref.f_code.co_filename in (thisfile, self.filename)):
                 continue
-
             # Exclude all functions and classes from this module or reftree.
             mod = getattr(ref, "__module__", "")
-            if "dowser" in mod or "reftree" in mod or mod == '__main__':
+            if "dowser" in mod or "pydevd" in mod or "reftree" in mod or mod == '__main__':
+                continue
+            if isinstance(ref, dict) and ref.get('self').__class__ == self.__class__:
                 continue
 
             # Exclude all parents in our ignore list.
@@ -313,7 +326,10 @@ class ReferrerTree(reftree.Tree):
         typename = objtype.__module__ + "." + objtype.__name__
         prettytype = typename.replace("__builtin__.", "")
 
-        name = getattr(obj, "__name__", "")
+        try:
+            name = getattr(obj, "__name__", "")
+        except Exception as e:
+            name = traceback._format_final_exc_line(type(e), e)
         if name:
             prettytype = "%s %r" % (prettytype, name)
 

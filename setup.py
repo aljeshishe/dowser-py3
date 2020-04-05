@@ -30,7 +30,7 @@ except ImportError:
 
 setup(
     name='dowser-py3',
-    version='0.2.1',
+    version='0.2.2',
     description="Python3 fork of dowser library",
     long_description=long_description,
     url='https://github.com/appknox/dowser-py3',
@@ -49,6 +49,7 @@ setup(
     keywords='dowser memory leak',
     packages=find_packages(),
     py_modules=['dowser'],
+    package_data={'dowser': ['*.html', '*.css']},
     entry_points='''
     ''',
     install_requires=[

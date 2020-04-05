@@ -39,7 +39,7 @@ class Tree:
             count += 1
             if maxresults and count >= maxresults:
                 yield 0, 0, "==== Max results reached ===="
-                raise StopIteration
+                return
 
     def print_tree(self, maxresults=100, maxdepth=None):
         """Walk the object tree, pretty-printing each branch."""
@@ -48,8 +48,42 @@ class Tree:
             print(("%9d" % refid), (" " * depth * 2), rep)
 
 
+MAX_CONTAINER_LEN = 10
+MAX_REPR_LEN = 250
+
+
+def safe_repr(obj):
+    if isinstance(obj, (set, list, tuple, dict)):
+        return '<%s of len %s>' % (obj.__class__.__name__, len(obj))
+    return repr(obj)
+
+
+def dict_gen(obj):
+    for k, v in obj.items():
+        yield '%s: %s' % (safe_repr(k), safe_repr(v))
+
+
+def list_gen(obj):
+    for v in obj:
+        yield safe_repr(v)
+
+
 def _repr_container(obj):
-    return "%s of len %s: %r" % (type(obj).__name__, len(obj), obj)
+    if isinstance(obj, dict):
+        generator = dict_gen(obj)
+    else:
+        generator = list_gen(obj)
+
+    repr_list = []
+    total_len = 0
+    for item in generator:
+        repr_list.append(item)
+        total_len += len(item)
+        if total_len > MAX_REPR_LEN:
+            break
+
+    return "%s of len %s: %s" % (type(obj).__name__, len(obj), ', '.join(repr_list))
+
 
 repr_dict = _repr_container
 repr_set = _repr_container
@@ -66,7 +100,7 @@ def repr_frame(obj):
     return "frame from %s line %s" % (obj.f_code.co_filename, obj.f_lineno)
 
 
-def get_repr(obj, limit=250):
+def get_repr(obj, limit=MAX_REPR_LEN):
     typename = getattr(type(obj), "__name__", None)
     handler = globals().get("repr_%s" % typename, repr)
 
@@ -86,7 +120,7 @@ class ReferentTree(Tree):
     def _gen(self, obj, depth=0):
         if self.maxdepth and depth >= self.maxdepth:
             yield depth, 0, "---- Max depth reached ----"
-            raise StopIteration
+            return
 
         for ref in gc.get_referents(obj):
             if id(ref) in self._ignore:
@@ -107,7 +141,7 @@ class ReferrerTree(Tree):
     def _gen(self, obj, depth=0):
         if self.maxdepth and depth >= self.maxdepth:
             yield depth, 0, "---- Max depth reached ----"
-            raise StopIteration
+            return
 
         refs = gc.get_referrers(obj)
         refiter = iter(refs)
@@ -149,12 +183,12 @@ class CircularReferents(Tree):
             count += 1
             if maxresults and count >= maxresults:
                 yield 0, 0, "==== Max results reached ===="
-                raise StopIteration
+                return
 
     def _gen(self, obj, depth=0, trail=None):
         if self.maxdepth and depth >= self.maxdepth:
             self.stops += 1
-            raise StopIteration
+            return
 
         if trail is None:
             trail = []
@@ -190,3 +224,15 @@ def count_objects():
         d[objtype] = d.get(objtype, 0) + 1
     d = sorted([(v, k) for k, v in d.items()])
     return d
+
+if __name__ == '__main__':
+    class A:
+        def __repr__(self):
+            return 'A'
+    print(get_repr([i for i in range(10000)]))
+    print(get_repr(set([1,2,3,4,5,5,6,7,8,5, A()])))
+    print(get_repr({2:'123',
+                    1:{1:A()},
+                    3:[A()]
+                    }))
+
