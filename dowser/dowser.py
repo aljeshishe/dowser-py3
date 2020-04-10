@@ -357,3 +357,4 @@ class ReferrerTree(reftree.Tree):
             if getattr(obj, k, None) is referent:
                 return " (via its %r attribute)" % k
         return ""
+

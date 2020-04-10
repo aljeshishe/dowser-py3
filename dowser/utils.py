@@ -12,22 +12,30 @@ Version: 0.1
 Author: dhilipsiva <dhilipsiva@gmail.com>
 Date created: 2015-11-24
 """
-
+from contextlib import contextmanager
 import cherrypy
+
 from dowser import Root
 
 
-def launch_memory_usage_server(port=8080, show_trace=False):
-    config = {
-        'environment': 'embedded',
-        'server.socket_port': port,
-    }
-    if show_trace:
-        config.update({
-            'global': {
-                'request.show_tracebacks': True
-            }}
-        )
-    cherrypy.tree.mount(Root())
-    cherrypy.config.update(config)
-    cherrypy.engine.start()
+@contextmanager
+def server(port=8888, show_trace=True):
+
+    try:
+        config = {
+            'environment': 'embedded',
+            'server.socket_port': port,
+        }
+        if show_trace:
+            config.update({
+                'global': {
+                    'request.show_tracebacks': True
+                }}
+            )
+        cherrypy.tree.mount(Root())
+        cherrypy.config.update(config)
+        cherrypy.server.socket_port = port
+        cherrypy.engine.start()
+        yield cherrypy.engine
+    finally:
+        cherrypy.engine.exit()
