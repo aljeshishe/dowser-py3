@@ -47,7 +47,7 @@ dictproxy = type(_.__dict__)
 method_types = [
     type(tuple.__le__),  # 'wrapper_descriptor'
     type([1].__le__),  # 'method-wrapper'
-    type(sys.getcheckinterval),  # 'builtin_function_or_method'
+    type(sys.getswitchinterval),  # 'builtin_function_or_method'
     type(cgi.FieldStorage.getfirst),  # 'instancemethod'
 ]
 
@@ -335,7 +335,7 @@ class ReferrerTree(reftree.Tree):
             prettytype = "%s %r" % (prettytype, name)
 
         key = ""
-        if referent:
+        if referent is not None:
             key = self.get_refkey(obj, referent)
         return ('<a class="objectid" href="%s">%s</a> '
                 '<span class="typename">%s</span>%s<br />'

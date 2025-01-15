@@ -18,24 +18,24 @@ import cherrypy
 from dowser import Root
 
 
-@contextmanager
-def server(port=8888, show_trace=True):
+def launch_memory_usage_server(port=8080, host='0.0.0.0', show_trace=False, show_log=False):
+    config = {
+        'environment': 'embedded',
+        'server.socket_port': port,
+        'server.socket_host': host,
+    }
 
-    try:
-        config = {
-            'environment': 'embedded',
-            'server.socket_port': port,
-        }
-        if show_trace:
-            config.update({
-                'global': {
-                    'request.show_tracebacks': True
-                }}
-            )
-        cherrypy.tree.mount(Root())
-        cherrypy.config.update(config)
-        cherrypy.server.socket_port = port
-        cherrypy.engine.start()
-        yield cherrypy.engine
-    finally:
-        cherrypy.engine.exit()
+
+    if not show_log:
+        cherrypy.log.error_log.propagate = False
+        cherrypy.log.access_log.propagate = False
+
+
+    if show_trace:
+        config['global'] = {'request.show_tracebacks': True}
+        
+    cherrypy.tree.mount(Root())
+    cherrypy.config.update(config)
+    cherrypy.engine.start()
+    return cherrypy.engine
+        
